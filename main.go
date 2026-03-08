@@ -60,6 +60,7 @@ type model struct {
 	sizeInput     string
 	sizeCursor    int
 	sizeInputOp   string
+	helpVisible   bool
 	quitting      bool
 }
 
@@ -735,6 +736,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		switch msg.String() {
+		case "?":
+			m.helpVisible = !m.helpVisible
+			if m.helpVisible {
+				m.message = "キーバインド一覧を表示"
+			} else {
+				m.message = "キーバインド一覧を閉じました"
+			}
+			return m, nil
 		case "up":
 			return m, m.applyAction("up")
 		case "down":
@@ -788,6 +797,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.sizeCursor = 0
 			m.sizeInputOp = ">="
 			m.message = "サイズ下限を入力してください (例: 500KB, 10MB)"
+			return m, nil
+		case "x":
+			if m.filterQuery == "" && m.sizeOp == "" {
+				m.message = "解除するフィルターはありません"
+				return m, nil
+			}
+			m.clearFilter()
+			m.cursor = 0
+			m.offset = 0
+			m.applyFilter()
+			m.message = "フィルターをすべて解除しました"
 			return m, nil
 		case "q":
 			m.beginAction("quit")
@@ -898,10 +918,13 @@ func (m model) View() string {
 		} else {
 			b.WriteString("\n")
 		}
-		b.WriteString("Key: ↑↓←→ PgUp/PgDn Space d m c r f s S q\n")
+		b.WriteString("Key: ↑↓←→ PgUp/PgDn Space d m c r f s S x ? q\n")
 	}
 	if m.message != "" {
 		b.WriteString("Msg: " + m.message + "\n")
+	}
+	if m.helpVisible {
+		b.WriteString(helpView())
 	}
 
 	return b.String()
@@ -927,6 +950,31 @@ func renderInputWithCursor(input string, cursor int) string {
 	withCursor = append(withCursor, '|')
 	withCursor = append(withCursor, r[cursor:]...)
 	return string(withCursor)
+}
+
+func helpView() string {
+	lines := []string{
+		"",
+		"Commands:",
+		"  ?: このキーバインド一覧を表示/非表示",
+		"  ↑ / ↓: カーソル移動",
+		"  ←: 親ディレクトリへ移動",
+		"  → / Enter: ディレクトリを開く / ファイル選択を切替",
+		"  PgUp / PgDn: 1ページ移動",
+		"  Space: 選択/解除を切り替え",
+		"  d: 削除確認",
+		"  m: カレントディレクトリへ移動確認",
+		"  c: カレントディレクトリへコピー確認",
+		"  r: リネーム入力開始",
+		"  f: 名前フィルター入力",
+		"  s: サイズ上限フィルター入力",
+		"  S: サイズ下限フィルター入力",
+		"  x: すべてのフィルターを解除",
+		"  q: 終了確認",
+		"  y / n: 確認ダイアログで実行 / キャンセル",
+		"  Esc: 入力や確認をキャンセル",
+	}
+	return strings.Join(lines, "\n") + "\n"
 }
 
 func parseSizeInput(raw string) (int64, error) {
