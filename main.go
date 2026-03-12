@@ -60,6 +60,8 @@ type model struct {
 	sizeInput     string
 	sizeCursor    int
 	sizeInputOp   string
+	sortKey       string
+	sortDesc      bool
 	helpVisible   bool
 	quitting      bool
 }
@@ -70,8 +72,10 @@ func newModel() model {
 		cwd = "."
 	}
 	m := model{
-		cwd:    cwd,
-		marked: map[string]bool{},
+		cwd:      cwd,
+		marked:   map[string]bool{},
+		sortKey:  "name",
+		sortDesc: false,
 	}
 	m.reload()
 	return m
@@ -102,15 +106,69 @@ func (m *model) reload() {
 		})
 	}
 
-	sort.Slice(list, func(i, j int) bool {
-		if list[i].isDir != list[j].isDir {
-			return list[i].isDir
-		}
-		return strings.ToLower(list[i].name) < strings.ToLower(list[j].name)
-	})
-
 	m.entries = list
+	m.sortEntries()
 	m.applyFilter()
+}
+
+func (m *model) sortEntries() {
+	sort.Slice(m.entries, func(i, j int) bool {
+		left := m.entries[i]
+		right := m.entries[j]
+		if left.isDir != right.isDir {
+			return left.isDir
+		}
+
+		var cmp int
+		switch m.sortKey {
+		case "size":
+			if left.size != right.size {
+				if left.size < right.size {
+					cmp = -1
+				} else {
+					cmp = 1
+				}
+			} else {
+				cmp = strings.Compare(strings.ToLower(left.name), strings.ToLower(right.name))
+			}
+		case "time":
+			if !left.modTime.Equal(right.modTime) {
+				if left.modTime.Before(right.modTime) {
+					cmp = -1
+				} else {
+					cmp = 1
+				}
+			} else {
+				cmp = strings.Compare(strings.ToLower(left.name), strings.ToLower(right.name))
+			}
+		default:
+			cmp = strings.Compare(strings.ToLower(left.name), strings.ToLower(right.name))
+		}
+
+		if m.sortDesc {
+			return cmp > 0
+		}
+		return cmp < 0
+	})
+}
+
+func (m *model) sortLabel() string {
+	dir := "asc"
+	if m.sortDesc {
+		dir = "desc"
+	}
+	return m.sortKey + " " + dir
+}
+
+func nextSortKey(current string) string {
+	switch current {
+	case "name":
+		return "size"
+	case "size":
+		return "time"
+	default:
+		return "name"
+	}
 }
 
 func (m *model) applyFilter() {
@@ -809,6 +867,22 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.applyFilter()
 			m.message = "フィルターをすべて解除しました"
 			return m, nil
+		case "o":
+			m.sortKey = nextSortKey(m.sortKey)
+			m.sortEntries()
+			m.applyFilter()
+			m.message = "ソート変更: " + m.sortLabel()
+			return m, nil
+		case "O":
+			m.sortDesc = !m.sortDesc
+			m.sortEntries()
+			m.applyFilter()
+			m.message = "ソート方向変更: " + m.sortLabel()
+			return m, nil
+		case "R":
+			m.reload()
+			m.message = "再読み込みしました"
+			return m, nil
 		case "q":
 			m.beginAction("quit")
 		}
@@ -848,6 +922,7 @@ func (m model) View() string {
 	} else {
 		b.WriteString(fmt.Sprintf("Size: %s %s\n", m.sizeOp, humanSize(m.sizeBytes)))
 	}
+	b.WriteString("Sort: " + m.sortLabel() + "\n")
 	b.WriteString("------------------------------------------------------------\n")
 	b.WriteString("  Sel Name                             Size      Modified\n")
 
@@ -918,7 +993,7 @@ func (m model) View() string {
 		} else {
 			b.WriteString("\n")
 		}
-		b.WriteString("Key: ↑↓←→ PgUp/PgDn Space d m c r f s S x ? q\n")
+		b.WriteString("Key: ↑↓←→ PgUp/PgDn Space d m c r f s S x o O R ? q\n")
 	}
 	if m.message != "" {
 		b.WriteString("Msg: " + m.message + "\n")
@@ -970,6 +1045,9 @@ func helpView() string {
 		"  s: サイズ上限フィルター入力",
 		"  S: サイズ下限フィルター入力",
 		"  x: すべてのフィルターを解除",
+		"  o: ソート項目を name -> size -> time で切替",
+		"  O: ソート順を asc / desc で切替",
+		"  R: 再読み込み",
 		"  q: 終了確認",
 		"  y / n: 確認ダイアログで実行 / キャンセル",
 		"  Esc: 入力や確認をキャンセル",
