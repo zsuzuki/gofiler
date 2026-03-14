@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -273,6 +274,8 @@ func (m *model) actionDescription(code string) string {
 		return "選択対象をカレントディレクトリへ移動"
 	case "copy":
 		return "選択対象をカレントディレクトリへコピー"
+	case "view":
+		return "選択中ファイルを閲覧"
 	case "rename":
 		return "入力名でリネーム実行"
 	case "quit":
@@ -445,6 +448,28 @@ func (m *model) applyAction(code string) tea.Cmd {
 		}
 		m.reload()
 		m.message = fmt.Sprintf("%d件コピーしました", copied)
+	case "view":
+		if len(m.visible) == 0 {
+			m.message = "対象がありません"
+			return nil
+		}
+		current := m.visible[m.cursor]
+		if current.isDir {
+			m.message = "ディレクトリは閲覧できません"
+			return nil
+		}
+		cmd, label, err := viewerCommand(current.path)
+		if err != nil {
+			m.message = err.Error()
+			return nil
+		}
+		m.message = "閲覧終了: " + current.name
+		return tea.ExecProcess(cmd, func(err error) tea.Msg {
+			if err == nil {
+				return nil
+			}
+			return errMsg{message: fmt.Sprintf("%s の起動に失敗: %v", label, err)}
+		})
 	case "rename":
 		if m.renameSrc == "" || m.renameTarget == "" {
 			m.message = "リネーム情報が不正です"
@@ -514,6 +539,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.height = msg.Height
 		m.ensureCursorVisible()
+		return m, nil
+	case errMsg:
+		m.message = msg.message
 		return m, nil
 	case tea.KeyMsg:
 		if m.sizeFiltering {
@@ -822,6 +850,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.beginAction("move")
 		case "c":
 			m.beginAction("copy")
+		case "v":
+			return m, m.applyAction("view")
 		case "r":
 			if len(m.visible) == 0 {
 				m.message = "対象がありません"
@@ -993,7 +1023,7 @@ func (m model) View() string {
 		} else {
 			b.WriteString("\n")
 		}
-		b.WriteString("Key: ↑↓←→ PgUp/PgDn Space d m c r f s S x o O R ? q\n")
+		b.WriteString("Key: ↑↓←→ PgUp/PgDn Space d m c v r f s S x o O R ? q\n")
 	}
 	if m.message != "" {
 		b.WriteString("Msg: " + m.message + "\n")
@@ -1040,6 +1070,7 @@ func helpView() string {
 		"  d: 削除確認",
 		"  m: カレントディレクトリへ移動確認",
 		"  c: カレントディレクトリへコピー確認",
+		"  v: 選択中ファイルを閲覧 (.txt/.log は bat, Markdown は glow)",
 		"  r: リネーム入力開始",
 		"  f: 名前フィルター入力",
 		"  s: サイズ上限フィルター入力",
@@ -1102,6 +1133,21 @@ func parseSizeInput(raw string) (int64, error) {
 	}
 
 	return int64(val * mul), nil
+}
+
+type errMsg struct {
+	message string
+}
+
+func viewerCommand(path string) (*exec.Cmd, string, error) {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".txt", ".log":
+		return exec.Command("bat", "--paging", "always", path), "bat", nil
+	case ".md", ".markdown", ".mdown":
+		return exec.Command("glow", "-p", path), "glow", nil
+	default:
+		return nil, "", fmt.Errorf("この拡張子は閲覧対象外です")
+	}
 }
 
 func main() {
