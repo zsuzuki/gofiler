@@ -1140,8 +1140,13 @@ type errMsg struct {
 }
 
 func viewerCommand(path string) (*exec.Cmd, string, error) {
+	name := strings.ToLower(filepath.Base(path))
+	if name == "license" {
+		return exec.Command("bat", "--paging", "always", path), "bat", nil
+	}
+
 	switch strings.ToLower(filepath.Ext(path)) {
-	case ".txt", ".log":
+	case ".txt", ".log", ".json", ".cpp", ".cxx", ".c", ".h", ".py", ".lua", ".go", ".sh":
 		return exec.Command("bat", "--paging", "always", path), "bat", nil
 	case ".md", ".markdown", ".mdown":
 		return exec.Command("glow", "-p", path), "glow", nil
