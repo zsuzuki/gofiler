@@ -12,6 +12,7 @@ Go + [Bubble Tea](https://github.com/charmbracelet/bubbletea) で作ったシン
 - `d` で削除（確認あり）
 - `m` でカレントディレクトリへ移動（確認あり、ディレクトリまたぎ対応）
 - `c` でカレントディレクトリへコピー（確認あり）
+- `v` でテキスト系ファイルを外部ビューアで閲覧
 - `r` でリネーム（名前編集後に確認）
 - `f` で名前フィルター
 - `s` でサイズ以下フィルター、`S` でサイズ以上フィルター
@@ -24,6 +25,8 @@ Go + [Bubble Tea](https://github.com/charmbracelet/bubbletea) で作ったシン
 ## Requirements
 
 - Go 1.22+
+- `bat` (`.txt`, `.log`, `.json`, `.cpp`, `.cxx`, `.c`, `.h`, `.py`, `.lua`, `.go`, `.sh`, `LICENSE` の閲覧に使用)
+- `glow` (`.md`, `.markdown`, `.mdown` の閲覧に使用)
 
 ## Run
 
@@ -42,6 +45,7 @@ go run .
 - `d`: 削除
 - `m`: 移動
 - `c`: コピー
+- `v`: 閲覧
 - `r`: リネーム（編集モード）
 - `f`: 名前フィルター
 - `s`: サイズ `<=` フィルター
@@ -52,6 +56,12 @@ go run .
 - `R`: 再読み込み
 - `?`: キーバインド一覧を表示/非表示
 - `q`: 終了
+
+## File Preview
+
+- `v` で選択中ファイルを閲覧します
+- `bat --paging always`: `.txt`, `.log`, `.json`, `.cpp`, `.cxx`, `.c`, `.h`, `.py`, `.lua`, `.go`, `.sh`, `LICENSE`
+- `glow -p`: `.md`, `.markdown`, `.mdown`
 
 ## Size Filter Format
 
