@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -304,6 +305,8 @@ func (m *model) actionDescription(code string) string {
 		return "選択対象をカレントディレクトリへコピー"
 	case "view":
 		return "選択中ファイルを閲覧"
+	case "pathcopy":
+		return "選択中項目のフルパスをコピー"
 	case "rename":
 		return "入力名でリネーム実行"
 	case "quit":
@@ -498,6 +501,17 @@ func (m *model) applyAction(code string) tea.Cmd {
 			}
 			return errMsg{message: fmt.Sprintf("%s の起動に失敗: %v", label, err)}
 		})
+	case "pathcopy":
+		if len(m.visible) == 0 {
+			m.message = "対象がありません"
+			return nil
+		}
+		current := m.visible[m.cursor]
+		if err := copyToClipboard(current.path); err != nil {
+			m.message = "コピー失敗: " + err.Error()
+			return nil
+		}
+		m.message = "フルパスをコピー: " + current.path
 	case "rename":
 		if m.renameSrc == "" || m.renameTarget == "" {
 			m.message = "リネーム情報が不正です"
@@ -878,6 +892,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.beginAction("move")
 		case "c":
 			m.beginAction("copy")
+		case "p":
+			return m, m.applyAction("pathcopy")
 		case "v":
 			return m, m.applyAction("view")
 		case "r":
@@ -1051,7 +1067,7 @@ func (m model) View() string {
 		} else {
 			b.WriteString("\n")
 		}
-		b.WriteString("Key: ↑↓←→ PgUp/PgDn Space d m c v r f s S x o O R ? q\n")
+		b.WriteString("Key: ↑↓←→ PgUp/PgDn Space d m c p v r f s S x o O R ? q\n")
 	}
 	if m.message != "" {
 		b.WriteString("Msg: " + m.message + "\n")
@@ -1085,6 +1101,29 @@ func renderInputWithCursor(input string, cursor int) string {
 	return string(withCursor)
 }
 
+func copyToClipboard(text string) error {
+	seq := osc52Sequence(text)
+	if _, err := os.Stdout.WriteString(seq); err != nil {
+		return err
+	}
+	return nil
+}
+
+func osc52Sequence(text string) string {
+	payload := base64.StdEncoding.EncodeToString([]byte(text))
+	seq := fmt.Sprintf("\x1b]52;c;%s\x07", payload)
+
+	if os.Getenv("TMUX") != "" {
+		escaped := strings.ReplaceAll(seq, "\x1b", "\x1b\x1b")
+		return "\x1bPtmux;" + escaped + "\x1b\\"
+	}
+	if term := os.Getenv("TERM"); strings.HasPrefix(term, "screen") {
+		return "\x1bP" + seq + "\x1b\\"
+	}
+
+	return seq
+}
+
 func helpView() string {
 	lines := []string{
 		"",
@@ -1098,6 +1137,7 @@ func helpView() string {
 		"  d: 削除確認",
 		"  m: カレントディレクトリへ移動確認",
 		"  c: カレントディレクトリへコピー確認",
+		"  p: 選択中項目のフルパスをクリップボードへコピー",
 		"  v: 選択中ファイルを閲覧 (.txt/.log は bat, Markdown は glow)",
 		"  r: リネーム入力開始",
 		"  f: 名前フィルター入力",
