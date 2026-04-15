@@ -225,11 +225,43 @@ func (m model) Init() tea.Cmd {
 }
 
 func (m model) pageSize() int {
-	base := m.height - 8
-	if base < 5 {
+	if m.height <= 0 {
 		return 10
 	}
+	base := m.height - m.nonListLineCount()
+	if base < 1 {
+		return 1
+	}
 	return base
+}
+
+func (m model) nonListLineCount() int {
+	lines := 6 // current/filter/size/sort/divider/header
+	lines += 2 // bottom divider + entries summary
+
+	switch {
+	case m.sizeFiltering:
+		lines += 2
+	case m.filtering:
+		lines += 2
+	case m.renaming:
+		lines += 3
+	default:
+		if m.pending != nil {
+			lines += 1
+		} else {
+			lines += 2
+		}
+	}
+
+	if m.message != "" {
+		lines++
+	}
+	if m.helpVisible {
+		lines += len(strings.Split(strings.TrimSuffix(helpView(), "\n"), "\n"))
+	}
+
+	return lines
 }
 
 func (m *model) ensureCursorVisible() {
