@@ -247,11 +247,7 @@ func (m model) nonListLineCount() int {
 	case m.renaming:
 		lines += 3
 	default:
-		if m.pending != nil {
-			lines += 1
-		} else {
-			lines += 2
-		}
+		lines += 2
 	}
 
 	if m.message != "" {
@@ -1064,7 +1060,7 @@ func (m model) View() string {
 		b.WriteString(helpView())
 	}
 
-	return b.String()
+	return strings.TrimRight(b.String(), "\n")
 }
 
 func min(a, b int) int {
