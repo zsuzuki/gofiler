@@ -297,6 +297,8 @@ func (m *model) actionDescription(code string) string {
 		return "1ページ下へスクロール"
 	case "space":
 		return "選択/解除を切り替え"
+	case "toggleall":
+		return "表示中項目を全選択/解除"
 	case "delete":
 		return "選択対象を削除"
 	case "move":
@@ -412,6 +414,37 @@ func (m *model) applyAction(code string) tea.Cmd {
 		} else {
 			m.marked[current.path] = true
 			m.message = "選択: " + current.name
+		}
+	case "toggleall":
+		if len(m.visible) == 0 {
+			m.message = "対象がありません"
+			return nil
+		}
+		allMarked := true
+		for _, e := range m.visible {
+			if !m.marked[e.path] {
+				allMarked = false
+				break
+			}
+		}
+		changed := 0
+		for _, e := range m.visible {
+			if allMarked {
+				if m.marked[e.path] {
+					delete(m.marked, e.path)
+					changed++
+				}
+				continue
+			}
+			if !m.marked[e.path] {
+				m.marked[e.path] = true
+				changed++
+			}
+		}
+		if allMarked {
+			m.message = fmt.Sprintf("表示中%d件の選択を解除", changed)
+		} else {
+			m.message = fmt.Sprintf("表示中%d件を選択", changed)
 		}
 	case "delete":
 		targets := m.selectedTargets()
@@ -886,6 +919,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.applyAction("pgdown")
 		case " ":
 			return m, m.applyAction("space")
+		case "a":
+			return m, m.applyAction("toggleall")
 		case "d":
 			m.beginAction("delete")
 		case "m":
@@ -1067,7 +1102,7 @@ func (m model) View() string {
 		} else {
 			b.WriteString("\n")
 		}
-		b.WriteString("Key: ↑↓←→ PgUp/PgDn Space d m c p v r f s S x o O R ? q\n")
+		b.WriteString("Key: ↑↓←→ PgUp/PgDn Space a d m c p v r f s S x o O R ? q\n")
 	}
 	if m.message != "" {
 		b.WriteString("Msg: " + m.message + "\n")
@@ -1134,6 +1169,7 @@ func helpView() string {
 		"  → / Enter: ディレクトリを開く / ファイル選択を切替",
 		"  PgUp / PgDn: 1ページ移動",
 		"  Space: 選択/解除を切り替え",
+		"  a: 表示中項目を全選択/解除",
 		"  d: 削除確認",
 		"  m: カレントディレクトリへ移動確認",
 		"  c: カレントディレクトリへコピー確認",
